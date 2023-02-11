@@ -24,7 +24,7 @@
 	ignore = dirty
 [submodule "vendor/libisdb"]
 	path = vendor/libisdb
-	url = https://github.com/DBCTRADO/LibISDB.git
+	url = https://github.com/up-stream/LibISDB.git
 	ignore = dirty
 [submodule "vendor/googletest"]
 	path = vendor/googletest
