@@ -255,6 +255,102 @@ rapidjson::Value MakeJsonValue(
   return json;
 }
 
+rapidjson::Value MakeJsonValue(
+    const LibISDB::DigitalCopyControlDescriptor::ComponentControlInfo& info, rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value json(rapidjson::kObjectType);
+  json.AddMember("componentTag", info.ComponentTag, allocator);
+  json.AddMember("digitalRecordingControlData", info.DigitalRecordingControlData, allocator);
+  json.AddMember("maximumBitRateFlag", info.MaximumBitRateFlag, allocator);
+  if (info.MaximumBitRateFlag) {
+    json.AddMember("maximumBitRate", info.MaximumBitRate, allocator);
+  }
+
+  return json;
+}
+
+rapidjson::Value MakeJsonValue(
+    const LibISDB::DigitalCopyControlDescriptor* desc, rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value json(rapidjson::kObjectType);
+  json.AddMember("$type", "DigitalCopyControl", allocator);
+  json.AddMember("digitalRecordingControlData", desc->GetDigitalRecordingControlData(), allocator);
+  json.AddMember("maximumBitRateFlag", desc->GetMaximumBitRateFlag(), allocator);
+  json.AddMember("componentControlFlag", desc->GetComponentControlFlag(), allocator);
+  if (desc->GetMaximumBitRateFlag()) {
+    json.AddMember("maximumBitRate", desc->GetMaximumBitRate(), allocator);
+  }
+  if (desc->GetComponentControlFlag()) {
+    rapidjson::Value controls(rapidjson::kArrayType);
+    for (int i = 0; i < desc->GetComponentControlCount(); ++i) {
+      LibISDB::DigitalCopyControlDescriptor::ComponentControlInfo info;
+      (void)desc->GetComponentControlInfo(i, &info);
+      auto control = MakeJsonValue(info, allocator);
+      controls.PushBack(control, allocator);
+    }
+    json.AddMember("componentControls", controls, allocator);
+  }
+  return json;
+}
+
+rapidjson::Value MakeJsonValue(
+    const LibISDB::DataComponentDescriptor* desc, rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value json(rapidjson::kObjectType);
+  json.AddMember("$type", "DataComponent", allocator);
+  json.AddMember("dataComponentID", desc->GetDataComponentID(), allocator);
+  return json;
+}
+
+rapidjson::Value MakeJsonValue(
+    const LibISDB::ParentalRatingDescriptor::ParentalRatingInfo& info, rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value json(rapidjson::kObjectType);
+  json.AddMember("countryCode", info.CountryCode, allocator);
+  json.AddMember("rating", info.Rating, allocator);
+
+  return json;
+}
+
+rapidjson::Value MakeJsonValue(
+    const LibISDB::ParentalRatingDescriptor* desc, rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value json(rapidjson::kObjectType);
+  json.AddMember("$type", "ParentalRating", allocator);
+  rapidjson::Value ratings(rapidjson::kArrayType);
+  for (int i = 0; i < desc->GetParentalRatingInfoCount(); ++i) {
+    LibISDB::ParentalRatingDescriptor::ParentalRatingInfo info;
+    (void)desc->GetParentalRatingInfo(i, &info);
+    auto rating = MakeJsonValue(info, allocator);
+    ratings.PushBack(rating, allocator);
+  }
+  json.AddMember("ratings", ratings, allocator);
+  return json;
+}
+
+rapidjson::Value MakeJsonValue(
+    const LibISDB::DataContentDescriptor* desc, rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value json(rapidjson::kObjectType);
+  json.AddMember("$type", "DataContent", allocator);
+  json.AddMember("dataComponentID", desc->GetDataComponentID(), allocator);
+  json.AddMember("entryComponent", desc->GetEntryComponent(), allocator);
+  json.AddMember("languageCode", desc->GetLanguageCode(), allocator);
+  rapidjson::Value componentRefs(rapidjson::kArrayType);
+  for (int i = 0; i < desc->GetComponentRefCount(); ++i) {
+    componentRefs.PushBack(desc->GetComponentRef(i), allocator);
+  }
+
+  LibISDB::ARIBString text;
+  if (desc->GetText(&text)) {
+    json.AddMember("text", DecodeAribString(text), allocator);
+  }
+
+  return json;
+}
+
+rapidjson::Value MakeJsonValue(
+    const LibISDB::DescriptorBase* desc, rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value json(rapidjson::kObjectType);
+  json.AddMember("$type", "Unknown", allocator);
+  json.AddMember("tag", desc->GetTag(), allocator);
+  return json;
+}
+
 rapidjson::Value MakeJsonValue(uint8_t group_type,
     const LibISDB::EventGroupDescriptor::EventInfo& info,
     rapidjson::Document::AllocatorType& allocator) {
@@ -457,8 +553,46 @@ rapidjson::Value MakeJsonValue(
         }
         break;
       }
-      default:
+      case LibISDB::DigitalCopyControlDescriptor::TAG: {
+        LibISDB::DigitalCopyControlDescriptor desc;
+        if (desc.Parse(dp->content(), dp->size())) {
+          auto json = MakeJsonValue(&desc, allocator);
+          descriptors.PushBack(json, allocator);
+        }
         break;
+      }
+      case LibISDB::DataComponentDescriptor::TAG: {
+        LibISDB::DataComponentDescriptor desc;
+        if (desc.Parse(dp->content(), dp->size())) {
+          auto json = MakeJsonValue(&desc, allocator);
+          descriptors.PushBack(json, allocator);
+        }
+        break;
+      }
+      case LibISDB::DataContentDescriptor::TAG: {
+        LibISDB::DataContentDescriptor desc;
+        if (desc.Parse(dp->content(), dp->size())) {
+          auto json = MakeJsonValue(&desc, allocator);
+          descriptors.PushBack(json, allocator);
+        }
+        break;
+      }
+      case LibISDB::ParentalRatingDescriptor::TAG: {
+        LibISDB::ParentalRatingDescriptor desc;
+        if (desc.Parse(dp->content(), dp->size())) {
+          auto json = MakeJsonValue(&desc, allocator);
+          descriptors.PushBack(json, allocator);
+        }
+        break;
+      }
+      default: {
+        LibISDB::DescriptorBase desc;
+        if (desc.Parse(dp->content(), dp->size())) {
+          auto json = MakeJsonValue(&desc, allocator);
+          descriptors.PushBack(json, allocator);
+        }
+        break;
+      }
     }
   }
   return descriptors;
@@ -561,8 +695,36 @@ rapidjson::Value MakeEventsJsonValue(const EitSection& eit, Allocator& allocator
           descriptors.PushBack(json, allocator);
           break;
         }
-        default:
+        case LibISDB::DigitalCopyControlDescriptor::TAG: {
+          const auto* desc = static_cast<const LibISDB::DigitalCopyControlDescriptor*>(dp);
+          auto json = MakeJsonValue(desc, allocator);
+          descriptors.PushBack(json, allocator);
           break;
+        }
+        case LibISDB::DataComponentDescriptor::TAG: {
+          const auto* desc = static_cast<const LibISDB::DataComponentDescriptor*>(dp);
+          auto json = MakeJsonValue(desc, allocator);
+          descriptors.PushBack(json, allocator);
+          break;
+        }
+        case LibISDB::ParentalRatingDescriptor::TAG: {
+          const auto* desc = static_cast<const LibISDB::ParentalRatingDescriptor*>(dp);
+          auto json = MakeJsonValue(desc, allocator);
+          descriptors.PushBack(json, allocator);
+          break;
+        }
+        case LibISDB::DataContentDescriptor::TAG: {
+          const auto* desc = static_cast<const LibISDB::DataContentDescriptor*>(dp);
+          auto json = MakeJsonValue(desc, allocator);
+          descriptors.PushBack(json, allocator);
+          break;
+        }
+        default: {
+          const auto* desc = static_cast<const LibISDB::DescriptorBase*>(dp);
+          auto json = MakeJsonValue(desc, allocator);
+          descriptors.PushBack(json, allocator);
+          break;
+        }
       }
     }
 
